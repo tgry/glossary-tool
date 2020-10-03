@@ -1,12 +1,11 @@
 <template>
   <div id="app">
-    <img alt="Vue logo" src="./assets/logo.png">
-    <HelloWorld msg="Welcome to Your Vue.js App"/>
+    <GlossaryTool />
   </div>
 </template>
 
 <script>
-import HelloWorld from './components/HelloWorld.vue'
+import GlossaryTool from './components/GlossaryTool.vue'
 import Vue from 'vue'
 
 // bootstrap用
@@ -21,7 +20,7 @@ Vue.use(IconsPlugin)
 export default {
   name: 'App',
   components: {
-    HelloWorld
+    GlossaryTool
   }
 }
 </script>
