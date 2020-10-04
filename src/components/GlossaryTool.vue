@@ -37,7 +37,10 @@
             <glossary-list-item v-for="glossary in glossary_list" :key="glossary.path" :glossary="glossary" v-on:remove-glossary="removeGlossary" v-on:select-glossary="selectGlossary"></glossary-list-item>
           </p>
         </b-col>
-        <b-col id="glossary-area" cols="9">メイン</b-col>
+        <b-col id="glossary-area" cols="9">
+          <!-- 用語集の表示 -->
+          <glossary-view ref="glossary_view" v-on:remove-glossary="removeGlossary" v-on:update-glossary="updateGlossary"></glossary-view>
+        </b-col>
       </b-row>
     </b-container>
 
@@ -66,6 +69,8 @@
 
 <script>
 import GlossaryListItem from "./GlossaryListItem.vue";
+import GlossaryView from "./GlossaryView.vue";
+
 export default {
   name: "GlossaryTool",
   props: {
@@ -83,7 +88,8 @@ export default {
     };
   },
   components: {
-    'glossary-list-item':GlossaryListItem
+    'glossary-list-item':GlossaryListItem,
+    'glossary-view': GlossaryView
   },
   created: function () {
     // 初期化処理
@@ -110,12 +116,12 @@ export default {
         .then((res) => {
           if (res.status === 0) {
             // オフライン
-            console.log('unauthorized');
+            console.log('オフライン');
             this.reloadGlossaryList();
             return;
           } else if (res.error === 'unauthorized') {
             // 認証失敗
-            console.log('offline');
+            console.log('認証失敗');
             this.reloadGlossaryList();
             return;
           }
@@ -169,7 +175,7 @@ export default {
     addGlossary: function(glossary_name) {
       let self = this;
       this.$pouch.put({"_id":glossary_name, "words":[]}, {}, 'pouch_glossary').then(function() {
-        condole.log('追加:' + glossary_name);
+        console.log('追加:' + glossary_name);
         // リストを作り直す
         self.reloadGlossaryList();
       });
@@ -249,6 +255,7 @@ export default {
       if (doc._id == this.current_glossary) {
         // 選択中の用語集を削除する場合はクリアする
         this.current_glossary = null;
+        this.$refs.glossary_view.setGlossary(null);
       }
       this.$pouch.remove(doc, {}, 'pouch_glossary').then(function(){
         // リストを再生成
@@ -258,6 +265,11 @@ export default {
     selectGlossary:function(doc) {
       // 用語集を選択
       console.log('選択：'+ doc._id);
+
+      // ビューに設定
+      this.$refs.glossary_view.setGlossary(doc);
+
+      // カレントを更新
       this.current_glossary = doc._id;
     },
     exportAppFile: function() {
@@ -339,7 +351,7 @@ export default {
       let self = this;
       this.$pouch.get(doc._id, {}, 'pouch_glossary').then(function(result){
         self.$pouch.put({"_id":doc._id, "_rev": result._rev, "words": doc.words}, {}, 'pouch_glossary').then(function(){
-          condole.log('更新:' + doc._id);
+          console.log('更新: ' + doc._id);
         })
       }).catch(function(error) {
         console.log(error);
