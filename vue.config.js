@@ -1,4 +1,4 @@
 module.exports = {
-    publicPath: '/glossary-tool/',
+    publicPath: './',
     outputDir: 'docs'
 }

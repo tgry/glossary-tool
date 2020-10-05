@@ -14,7 +14,7 @@
 importScripts("https://storage.googleapis.com/workbox-cdn/releases/4.3.1/workbox-sw.js");
 
 importScripts(
-  "/glossary-tool/precache-manifest.5edcd9fcfe1bd49fbb49039524075953.js"
+  "precache-manifest.ef7dbf2134d954c8c0f2b6bfa33a1a23.js"
 );
 
 workbox.core.setCacheNameDetails({prefix: "glossary-tool"});

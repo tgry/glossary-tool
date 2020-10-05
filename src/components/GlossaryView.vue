@@ -28,45 +28,46 @@
       <b-container fluid class="convert-container">
         <b-row>
           <b-col>
-            <b-form-textarea ref="name_textarea" @change="changeNameTextArea" v-model="name_convert"></b-form-textarea>
+            <b-form-textarea ref="name_textarea" placeholder="名前" rows="8" @change="changeNameTextArea" v-model="name_convert"></b-form-textarea>
           </b-col>
           <b-col class="convert-arrow-col">
-            <b-icon-arrow-bar-right font-scale="3"></b-icon-arrow-bar-right>
+            <b-icon-arrow-right font-scale="3"></b-icon-arrow-right>
           </b-col>
           <b-col>
-            <b-form-textarea ref="value_textarea" v-model="value_convert"></b-form-textarea>
+            <b-form-textarea ref="value_textarea" placeholder="値" rows="8" v-model="value_convert"></b-form-textarea>
           </b-col>
         </b-row>
       </b-container>
     </b-collapse>
     <div><b-button block variant="primary" v-b-toggle.word-list>一覧</b-button></div>
     <b-collapse id="word-list" visible>
-      <b-container>
-        <b-row class="word-list-header">
-          <b-col>単語</b-col>
-          <b-col>値</b-col>
-          <b-col>説明</b-col>
-          <b-col>編集</b-col>
-          <b-col>削除</b-col>
-        </b-row>
-        <b-row v-for=" word in glossary.words" :key="word.name">
-          <b-col>{{word.name}}</b-col>
-          <b-col>{{word.value}}</b-col>
-          <b-col>{{word.description}}</b-col>
-          <b-col><b-button @click="clickEditWordButton(word)" title="編集" v-b-tooltip.hover><b-icon-pen font-scale="1"></b-icon-pen></b-button></b-col>
-          <b-col><b-button @click="clickRemoveWordButton(word)" title="削除" v-b-tooltip.hover><b-icon-trash font-scale="1"></b-icon-trash></b-button></b-col>
-        </b-row>
-      </b-container>
+      <table class="word-table">
+        <thead>
+          <th>単語</th>
+          <th>値</th>
+          <th>説明</th>
+          <th>編集</th>
+          <th>削除</th>
+        </thead>
+        <tbody>
+          <tr v-for=" word in words" :key="word.name">
+            <td>{{word.name}}</td>
+            <td>{{word.value}}</td>
+            <td>{{word.description}}</td>
+            <td><b-button @click="clickEditWordButton(word)" title="編集" v-b-tooltip.hover><b-icon-pen font-scale="1"></b-icon-pen></b-button></td>
+            <td><b-button @click="clickRemoveWordButton(word)" title="削除" v-b-tooltip.hover><b-icon-trash font-scale="1"></b-icon-trash></b-button></td>
+          </tr>
+        </tbody>
+      </table>
     </b-collapse>
+
     <!-- ダイアログ類 -->
 
     <!-- 設定 -->
     <b-modal id="glossary-config-dialog" title="個別設定">
-      <b-button @click="clickImportGlossaryButton" title="ファイルからインポートします(既存データは削除されます)">インポート</b-button>
-      <b-button @click="exportGlossaryFile" title="表示されている用語集をファイルへ保存します">エクスポート</b-button>
-      <div id="glossary-file-select">
-        <input type="file" ref="glossary_import_file">
-        <a ref="glossary_export_link" href="#" download="glossarydata.js">export</a>
+      <div id="glossary-config-button-area">
+        <b-button @click="clickImportGlossaryButton" title="ファイルからインポートします(既存の単語は削除されます)" v-b-tooltip.hover>インポート</b-button>
+        <b-button @click="exportGlossaryFile" title="表示されている用語集をファイルへ保存します" v-b-tooltip.hover>エクスポート</b-button>
       </div>
     </b-modal>
 
@@ -84,6 +85,12 @@
         </b-form-group>
       </form>
     </b-modal>
+
+    <!-- エクスポート インポート用 -->
+    <div id="glossary-file-select">
+      <input type="file" ref="glossary_import_file">
+      <a ref="glossary_export_link" href="#" download="glossarydata.js">export</a>
+    </div>
   </div>
 </template>
 
@@ -99,44 +106,109 @@ export default {
       edit_word_dialog_description:'',
       current_word:null,
       name_convert:'',
-      value_convert:''
+      value_convert:'',
+      words:[]
     }
   },
   methods: {
     setGlossary: function(doc) {
       // 用語集の設定
       this.glossary = doc ? {"_id":doc._id, "words":doc.words}: null;
+      this.words = this.glossary.words;
       this.name_convert = '';
       this.value_convert = '';
     },
     clickImportGlossaryButton: function() {
       // インポートボタン押下
+      let self = this;
+      this.$refs.glossary_import_file.onchange = function() {
+        self.importGlossaryFile();
+      }
+      this.$refs.glossary_import_file.click();
+    },
+    importGlossaryFile: function() {
+      // インポート処理
+      let file = this.$refs.glossary_import_file.files[0];
+      let reader = new FileReader();
+      let self = this;
 
+      reader.onload = function() {
+        let data = JSON.parse(reader.result);
+
+        self.glossary.words = data[0].words;
+        self.words = data[0].words;
+
+        // 親に送る
+        self.$emit('update-glossary', self.glossary);
+      }
+
+      reader.readAsText(file, 'utf-8');
+      // ダイアログは閉じておく
+      this.$bvModal.hide('app-config-dialog');
     },
     exportGlossaryFile: function() {
       // エクスポート実行
+      let self = this;
+      this.$pouch.get(
+        this.glossary._id,
+        {include_docs: true},
+        'pouch_glossary'
+      ).then(function(result) {
+        let data = [];
+        data.push({ "_id":result._id, "words":result.words });
+
+        const reader = new FileReader();
+        reader.onload = function() {
+          // データを設定
+          self.$refs.glossary_export_link.href='data:text/plain;charset=UTF-8;base64,' + reader.result.split(',')[1];
+          // ダウンロードさせる
+          self.$refs.glossary_export_link.click();
+        }
+
+        reader.readAsDataURL(new Blob([JSON.stringify(data)]));
+      }).catch(function (err) {
+        console.log(err);
+      });
 
     },
     handleWordEdit: function() {
+      let array = [];
+      let self = this;
+
       // 単語追加変更
       if (this.current_word) {
         // 変更
-        this.current_word.name = this.edit_word_dialog_name;
-        this.current_word.value = this.edit_word_dialog_value;
-        this.current_word.description = this.edit_word_dialog_description;
+        this.glossary.words.forEach(function(word){
+          if (word.name == self.current_word.name) {
+            word.name = self.edit_word_dialog_name;
+            word.value = self.edit_word_dialog_value;
+            word.description = self.edit_word_dialog_description;
+          }
+          array.push(word);
+        });
       } else {
         // 追加
-        this.glossary.words.push(
+        this.glossary.words.forEach(function(word){
+          array.push(word);
+        });
+
+        array.push(
           {
-            "name": this.edit_word_dialog_name,
-            "value": this.edit_word_dialog_value,
-            "description": this.edit_word_dialog_description}
-          );
+            name: self.edit_word_dialog_name,
+            value: self.edit_word_dialog_value,
+            description: self.edit_word_dialog_description
+          }
+        );
       }
 
-      // ダイアログを閉じる
-      this.$bvModal.hide('edit-word-dialog');
+      this.glossary.words = array;
+      this.words = array;
 
+      // ダイアログを閉じる
+      this.$nextTick(function() {
+        this.$bvModal.hide('edit-word-dialog');
+      });
+    
       // 親に送る
       this.$emit('update-glossary', this.glossary);
 
@@ -172,6 +244,7 @@ export default {
       });
 
       this.glossary.words = array;
+      this.words = array;
 
       this.$emit('update-glossary', this.glossary);
     },
@@ -196,7 +269,6 @@ export default {
     }
   }
 }
-
 </script>
 
 <style scoped>
@@ -222,8 +294,14 @@ h2 {
   margin: 30px;
 }
 
+#glossary-config-button-area {
+  width: 100%;
+  text-align: center;
+}
+
 .convert-arrow-col {
   text-align: center;
+  max-width: 5em;
 }
 
 #glossary-config-button {
@@ -241,4 +319,34 @@ h2 {
 #glossary-file-select {
   display: none;
 }
+
+/* 単語一覧テーブル */
+.word-table {
+  width: 100%;
+}
+
+.word-table thead {
+  border-bottom:solid rgb(53, 57, 78) 1px;
+}
+
+.word-table thead th:nth-child(1) {
+  width: 30%;
+}
+
+.word-table thead th:nth-child(2) {
+  width: 30%;
+}
+
+.word-table thead th:nth-child(3) {
+  width: 30%;
+}
+
+.word-table thead th:nth-child(4) {
+  width: 5%;
+}
+
+.word-table thead th:nth-child(5) {
+  width: 5%;
+}
+
 </style>

@@ -27,7 +27,10 @@
             <b-icon-plus font-scale="2"></b-icon-plus>
           </b-button>
 
-          <p id="list-empty" v-if="glossary_list.length == 0">
+          <p v-if="!loaded">
+            <b-spinner label="Loading" variant="light"></b-spinner> 読み込み中…
+          </p>
+          <p id="list-empty" v-if="glossary_list.length == 0 && loaded">
             作成済みの用語集がありません<br />
             <b-button v-b-modal.add-glossary-dialog>作成</b-button>
             <b-button @click="clickImportButton">インポート</b-button>
@@ -47,13 +50,22 @@
     <!-- ダイアログ類 -->
 
     <!-- 設定 -->
-    <b-modal id="app-config-dialog" title="全体設定">
-      <b-button @click="clickImportButton" title="ファイルからインポートします(既存データは削除されます)">インポート</b-button>
-      <b-button @click="exportAppFile" title="すべての用語集をファイルへ保存します">エクスポート</b-button>
-      <div id="file-select">
-        <input type="file" ref="app_import_file">
-        <a ref="export_link" href="#" download="appdata.js">export</a>
+    <b-modal id="app-config-dialog" title="全体設定" @show="handleAppConfigDialogModalShow" @ok="handleAppConfigDialogModalOk">
+      <div id="app-config-button-area">
+        <b-button @click="clickImportButton" title="ファイルからインポートします(既存データは削除されます)" v-b-tooltip.hover>インポート</b-button>
+        <b-button @click="exportAppFile" title="すべての用語集をファイルへ保存します" v-b-tooltip.hover>エクスポート</b-button>
       </div>
+      <form ref="app_config_form">
+        <b-form-group label="CouchDBのURL" label-for="app-config-form-url-input" >
+          <b-form-input id="app-config-form-url-input" v-model="config_dialog_url" required></b-form-input>
+        </b-form-group>
+        <b-form-group label="CouchDBのユーザ" label-for="app-config-form-user-input">
+          <b-form-input id="app-config-form-user-input" v-model="config_dialog_user" required></b-form-input>
+        </b-form-group>
+        <b-form-group label="CouchDBのパスワード" label-for="app-config-form-password-input" >
+          <b-form-input id="app-config-form-password-input" v-model="config_dialog_password" required></b-form-input>
+        </b-form-group>
+      </form>
     </b-modal>
 
     <!-- 用語集追加 -->
@@ -64,6 +76,12 @@
         </b-form-group>
       </form>
     </b-modal>
+
+    <!-- エクスポート インポート用 -->
+    <div id="app-file-select">
+      <input type="file" ref="app_import_file">
+      <a ref="export_link" href="#" download="appdata.js">export</a>
+    </div>
   </div>
 </template>
 
@@ -81,10 +99,13 @@ export default {
       current_glossary: null,
       glossary_list: [],
       config: null,
-      config_dialog: {},
+      config_dialog_url:'',
+      config_dialog_user:'',
+      config_dialog_password:'',
       glossary_name_dialog: '',
       add_glossary_form_state: null,
-      import_file: null
+      import_file: null,
+      loaded: false
     };
   },
   components: {
@@ -98,6 +119,7 @@ export default {
     localStorage.glossary_tool_config =
       localStorage.glossary_tool_config ||
       '{"user":"admin", "password":"password", "couch_url":"http://localhost:5984/glossary-tool"}';
+    
     this.config = JSON.parse(localStorage.glossary_tool_config);
 
     // PouchDB接続
@@ -175,7 +197,7 @@ export default {
     addGlossary: function(glossary_name) {
       let self = this;
       this.$pouch.put({"_id":glossary_name, "words":[]}, {}, 'pouch_glossary').then(function() {
-        console.log('追加:' + glossary_name);
+        console.log('追加: ' + glossary_name);
         // リストを作り直す
         self.reloadGlossaryList();
       });
@@ -244,6 +266,7 @@ export default {
         });
         // プロパティを更新
         self.glossary_list = glist;
+        self.loaded = true;
 
         }).catch(function (err) {
         console.log(err);
@@ -271,6 +294,31 @@ export default {
 
       // カレントを更新
       this.current_glossary = doc._id;
+    },
+    handleAppConfigDialogModalShow: function() {
+      // 全体設定表示
+        this.config_dialog_url = this.config.couch_url;
+        this.config_dialog_user = this.config.user;
+        this.config_dialog_password = this.config.password;
+    },
+    handleAppConfigDialogModalOk: function() {
+      // 設定変更
+      let config_data = {
+        user: this.config_dialog_user,
+        password: this.config_dialog_password,
+        couch_url: this.config_dialog_url
+      };
+
+      localStorage.glossary_tool_config = JSON.stringify(config_data);
+      this.config = config_data;
+
+      // リロードの注意表示
+      this.$bvToast.toast('設定変更は再表示後に有効になります', {
+          title: '設定変更',
+          variant: 'warning',
+          toaster: 'b-toaster-top-left',
+          solid: true
+        });
     },
     exportAppFile: function() {
       let self = this;
@@ -408,7 +456,12 @@ h1 {
   margin: 30px;
 }
 
-#file-select {
+#app-config-button-area {
+  width: 100%;
+  text-align: center;
+}
+
+#app-file-select {
   display: none;
 }
 </style>
